@@ -18,8 +18,8 @@ struct opts_struct {
 
     // Gains of amplifiers within the bladeRF
     bladerf_lna_gain lna;
-    unsigned char rxvga1, rxvga2;
-    unsigned char txvga1, txvga2;
+    char rxvga1, rxvga2;
+    char txvga1, txvga2;
 
     // Internal buffer settings (we don't have a way to set these right now)
     unsigned int num_buffers;

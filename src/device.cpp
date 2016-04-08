@@ -80,6 +80,16 @@ bool open_device(void)
         }
     }
 
+    status = bladerf_set_lna_gain(device_data.dev, opts.lna);
+    if( status != 0 ) {
+        bool ok;
+        ERROR("Failed to set LNA gain to %ddB: %s\n", bladerf_lna_gain_to_db(opts.lna, &ok), bladerf_strerror(status));
+        goto out;
+    } else {
+        bool ok;
+        INFO("  LNA Gain: %ddB\n", bladerf_lna_gain_to_db(opts.lna, &ok));
+    }
+
     status = bladerf_set_rxvga1(device_data.dev, opts.rxvga1);
     if( status != 0 ) {
         ERROR("Failed to set RX VGA1 gain: %s\n", bladerf_strerror(status));
@@ -136,7 +146,7 @@ bool open_device(void)
 
     status = bladerf_enable_module(device_data.dev, BLADERF_MODULE_TX, true);
     if( status != 0 ) {
-        ERROR("Failed to enable RX module: %s\n", bladerf_strerror(status));
+        ERROR("Failed to enable TX module: %s\n", bladerf_strerror(status));
         goto out;
     }
 
@@ -157,12 +167,18 @@ out:
 
 void close_device(void)
 {
+    int status = 0;
     LOG("\nClosing device...");
 
     /* Disable RX module, shutting down our underlying RX stream */
-    int status = bladerf_enable_module(device_data.dev, BLADERF_MODULE_RX, false);
+    status = bladerf_enable_module(device_data.dev, BLADERF_MODULE_RX, false);
     if (status != 0) {
         ERROR("Failed to disable RX module: %s\n", bladerf_strerror(status));
+    }
+
+    status = bladerf_enable_module(device_data.dev, BLADERF_MODULE_TX, false);
+    if (status != 0) {
+        ERROR("Failed to disable TX module: %s\n", bladerf_strerror(status));
     }
 
     // Deinitialize and free resources

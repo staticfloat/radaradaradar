@@ -29,6 +29,7 @@ void usage()
     printf("  -h --help                  Show this screen.\n");
     printf("  -V --version               Show version.\n");
     printf("  -v --verbose               Raise verbosity level (can be repeated)\n");
+    printf("  -f --frequency=<freq>      Frequency to transmit on [default: 1G]\n");
     printf("  -e --exit-timer=<et>       Set capture time (examples: \"5h\", \"30m\") [default: 0]\n");
     printf("  -b --bandwidth=<bw>        Capture bandwidth [default: BLADERF_BANDWIDTH_MAX].\n");
     printf("  -g --lna-gain=<g>          Set LNA gain either as numeric dB value (0, %d, %d) or\n", BLADERF_LNA_GAIN_MID_DB, BLADERF_LNA_GAIN_MAX_DB);
@@ -50,6 +51,7 @@ static const struct option longopts[] = {
     { "help",               no_argument,        0, 'h' },
     { "version",            no_argument,        0, 'V' },
     { "verbose",            no_argument,        0, 'v' },
+    { "frequency",          required_argument,  0, 'f' },
     { "exit-timer",         required_argument,  0, 'e' },
     { "bandwidth",          required_argument,  0, 'b' },
     { "lna-gain",           required_argument,  0, 'g' },
@@ -57,6 +59,8 @@ static const struct option longopts[] = {
     { "rxvga2-gain",        required_argument,  0, 'w' },
     { "txvga1-gain",        required_argument,  0, 'q' },
     { "txvga2-gain",        required_argument,  0, 'r' },
+    { "rx-lpf",             no_argument,        0, 'R' },
+    { "tx-lpf",             no_argument,        0, 'T' },
     { "device",             required_argument,  0, 'd' },
     { 0,                    0,                  0,  0  },
 };
@@ -64,7 +68,7 @@ static const struct option longopts[] = {
 
 // Macro to set default values that are initialized to zero
 #define DEFAULT(field, val) if( field == 0 ) { field = val; }
-#define OPTSTR "hvVeRT:b:g:o:w:q:r:d:"
+#define OPTSTR "hvVRTe:f:b:g:o:w:q:r:d:"
 
 void parse_options(int argc, char ** argv)
 {
@@ -90,12 +94,23 @@ void parse_options(int argc, char ** argv)
                 version();
                 exit(0);
                 break;
+            case 'f':
+                opts.freq = str2uint_suffix(optarg, BLADERF_FREQUENCY_MIN,
+                                            BLADERF_FREQUENCY_MAX, freq_suffixes,
+                                            NUM_FREQ_SUFFIXES, &ok);
+                if( !ok ) {
+                    ERROR("Invalid frequency \"%s\"\n", optarg);
+                    ERROR("Valid values given in Hertz (ex: \"1000000000\")\n");
+                    ERROR("or, equivalently, with units (ex: \"1.1G\" or \"290M\")\n");
+                    exit(1);
+                }
+                break;
             case 'e':
                 opts.exit_timer = str2uint_suffix(optarg, 0, UINT_MAX, time_suffixes,
                                                   NUM_TIME_SUFFIXES, &ok);
                 if( !ok ) {
                     ERROR("Invalid exit timer \"%s\"\n", optarg);
-                    ERROR("Valid values given in milliseconds (ex: \"60000\")");
+                    ERROR("Valid values given in milliseconds (ex: \"60000\")\n");
                     ERROR("or, equivalently, with units: (ex: \"60s\" or \"1m\")\n");
                     exit(1);
                 }
@@ -130,7 +145,7 @@ void parse_options(int argc, char ** argv)
                 }
             }   break;
             case 'o':
-                opts.rxvga1 = str2uint(optarg, BLADERF_RXVGA1_GAIN_MIN,
+                opts.rxvga1 = str2int(optarg, BLADERF_RXVGA1_GAIN_MIN,
                                     BLADERF_RXVGA1_GAIN_MAX, &ok);
                 if( !ok ) {
                     ERROR("Invalid RXVGA1 gain \"%s\"\n", optarg);
@@ -139,7 +154,7 @@ void parse_options(int argc, char ** argv)
                 }
                 break;
             case 'w':
-                opts.rxvga2 = str2uint(optarg, BLADERF_RXVGA2_GAIN_MIN,
+                opts.rxvga2 = str2int(optarg, BLADERF_RXVGA2_GAIN_MIN,
                                     BLADERF_RXVGA2_GAIN_MAX, &ok);
                 if( !ok ) {
                     ERROR("Invalid RXVGA2 gain \"%s\"\n", optarg);
@@ -148,20 +163,20 @@ void parse_options(int argc, char ** argv)
                 }
                 break;
             case 'q':
-                opts.rxvga1 = str2uint(optarg, BLADERF_TXVGA1_GAIN_MIN,
+                opts.txvga1 = str2int(optarg, BLADERF_TXVGA1_GAIN_MIN,
                                     BLADERF_TXVGA1_GAIN_MAX, &ok);
                 if( !ok ) {
                     ERROR("Invalid TXVGA1 gain \"%s\"\n", optarg);
-                    ERROR("Valid range: [%u, %u]\n", BLADERF_TXVGA1_GAIN_MIN, BLADERF_TXVGA1_GAIN_MAX);
+                    ERROR("Valid range: [%d, %d]\n", BLADERF_TXVGA1_GAIN_MIN, BLADERF_TXVGA1_GAIN_MAX);
                     exit(1);
                 }
                 break;
             case 'r':
-                opts.rxvga2 = str2uint(optarg, BLADERF_TXVGA2_GAIN_MIN,
+                opts.txvga2 = str2int(optarg, BLADERF_TXVGA2_GAIN_MIN,
                                     BLADERF_TXVGA2_GAIN_MAX, &ok);
                 if( !ok ) {
                     ERROR("Invalid TXVGA2 gain \"%s\"\n", optarg);
-                    ERROR("Valid range: [%u, %u]\n", BLADERF_TXVGA2_GAIN_MIN, BLADERF_TXVGA2_GAIN_MAX);
+                    ERROR("Valid range: [%d, %d]\n", BLADERF_TXVGA2_GAIN_MIN, BLADERF_TXVGA2_GAIN_MAX);
                     exit(1);
                 }
                 break;
@@ -181,6 +196,7 @@ void parse_options(int argc, char ** argv)
 
     // Set defaults for everything that didn't get an explicit value:
     DEFAULT(opts.verbosity, 0);
+    DEFAULT(opts.freq, 2000000000);
     DEFAULT(opts.samplerate, BLADERF_BANDWIDTH_MAX);
     DEFAULT(opts.lna, BLADERF_LNA_GAIN_MAX);
     DEFAULT(opts.rxvga1, BLADERF_RXVGA1_GAIN_MIN);

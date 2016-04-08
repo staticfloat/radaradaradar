@@ -6,6 +6,7 @@
 #include <math.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 #include <sys/time.h>
 
 
@@ -56,31 +57,30 @@ void transmit_barker11(unsigned int time_ms) {
                  BLADERF_META_FLAG_TX_BURST_END;
 
     // Try to schedule this transmission for the next transmission time
-    meta.timestamp = device_data.next_tx_time;
+    //meta.timestamp = device_data.next_tx_time;
 
     unsigned int N = (time_ms*opts.samplerate)/(1000*11);
     int16_t * buff = (int16_t *)malloc(sizeof(int16_t)*2*N*11);
 
-    // Slam out barker11 datapoints with maximum gain into the real part of buff
+    // Slam out barker11 datapoints with some gain into the real part of buff
     for( unsigned int i=0; i<N; ++i ) {
-        buff[2*i +  0] = 2048;
-        buff[2*i +  2] = 2048;
-        buff[2*i +  4] = 2048;
-        buff[2*i +  6] = -2048;
-        buff[2*i +  8] = -2048;
-        buff[2*i + 10] = -2048;
-        buff[2*i + 12] = 2048;
-        buff[2*i + 14] = -2048;
-        buff[2*i + 16] = -2048;
-        buff[2*i + 18] = 2048;
-        buff[2*i + 20] = -2048;
+        buff[22*i +  0] = 2047;
+        buff[22*i +  2] = 2047;
+        buff[22*i +  4] = 2047;
+        buff[22*i +  6] = -2047;
+        buff[22*i +  8] = -2047;
+        buff[22*i + 10] = -2047;
+        buff[22*i + 12] = 2047;
+        buff[22*i + 14] = -2047;
+        buff[22*i + 16] = -2047;
+        buff[22*i + 18] = 2047;
+        buff[22*i + 20] = -2047;
     }
 
     // Hand these samples off to libbladeRF
-    status = bladerf_sync_tx(device_data.dev, buff, 2*N*11, &meta, opts.timeout_ms);
+    status = bladerf_sync_tx(device_data.dev, buff, N*11, &meta, opts.timeout_ms);
     if( status != 0 ) {
-        ERROR("TX failed for %d samples!\n", 2*N*11);
-        return;
+        ERROR("TX failed for %d samples: %s\n", N*11, bladerf_strerror(status));
     }
 
     // Update next_transmission_time, bumping next_tx_time forward if we have
@@ -93,7 +93,7 @@ void transmit_barker11(unsigned int time_ms) {
         if( device_data.next_tx_time < curr_ts )
             device_data.next_tx_time = curr_ts;
     }
-    device_data.next_tx_time += N;
+    device_data.next_tx_time += N*11;
 }
 
 int main(int argc, char ** argv)
@@ -129,8 +129,9 @@ int main(int argc, char ** argv)
         }
 
         // Otherwise, transmit!
+        printf(".");
+        fflush(stdout);
         transmit_barker11(10);
-
         wait_preciousssss();
     }
 
